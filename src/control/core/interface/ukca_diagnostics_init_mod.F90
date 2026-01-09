@@ -37,6 +37,7 @@
 MODULE ukca_diagnostics_init_mod
 
 USE ukca_config_specification_mod, ONLY: ukca_config_spec_type,                &
+                                         glomap_config_spec_type,              &
                                          l_ukca_config_available
 
 USE ukca_diagnostics_type_mod, ONLY: dgroup_flat_real, dgroup_fullht_real
@@ -72,8 +73,8 @@ INTEGER, ALLOCATABLE, SAVE, PUBLIC ::                                          &
 CONTAINS
 
 ! ----------------------------------------------------------------------
-SUBROUTINE init_diagnostics(error_code_ptr, ukca_config, advt,                 &
-                            error_message, error_routine)
+SUBROUTINE init_diagnostics(error_code_ptr, ukca_config, glomap_config,        &
+                            advt, error_message, error_routine)
 ! ----------------------------------------------------------------------
 ! Description:
 !   Initialise master diagnostics list and determine availability of
@@ -96,6 +97,9 @@ INTEGER, POINTER, INTENT(IN) :: error_code_ptr  ! Pointer to return code
 
 TYPE(ukca_config_spec_type), INTENT(IN OUT) :: ukca_config
                                                 ! UKCA configuration data
+
+TYPE(glomap_config_spec_type), INTENT(IN OUT) :: glomap_config
+                                                ! GLOMAP configuration data
 
 CHARACTER(LEN=*), INTENT(IN) :: advt(:)         ! Advected chemical species
 
@@ -165,7 +169,8 @@ IF (error_code_ptr <= 0) THEN
 
   ! Set availability of each diagnostic in the master diagnostics list given
   ! the UKCA configuration settings and count number of diagnostics available
-  CALL set_diagnostic_availabilities(error_code_ptr, ukca_config, advt,        &
+  CALL set_diagnostic_availabilities(error_code_ptr, ukca_config,              &
+                                     glomap_config, advt,                      &
                                      n_available, error_message, error_routine)
 
 END IF

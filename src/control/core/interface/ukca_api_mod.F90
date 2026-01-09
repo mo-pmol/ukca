@@ -103,7 +103,29 @@ USE ukca_fieldname_mod, ONLY:                                                  &
   ukca_diagname_rxnflux_oh_ch4_trop => diagname_rxnflux_oh_ch4_trop,           &
   ukca_diagname_p_tropopause => diagname_p_tropopause,                         &
   ukca_diagname_o3_column_du => diagname_o3_column_du,                         &
-  ukca_diagname_plumeria_height => diagname_plumeria_height
+  ukca_diagname_plumeria_height => diagname_plumeria_height,                   &
+  ukca_diagname_pm10_dry => diagname_pm10_dry,                                 &
+  ukca_diagname_pm2p5_dry => diagname_pm2p5_dry,                               &
+  ukca_diagname_pm10_wet => diagname_pm10_wet,                                 &
+  ukca_diagname_pm2p5_wet => diagname_pm2p5_wet,                               &
+  ukca_diagname_pm10_bc => diagname_pm10_bc,                                   &
+  ukca_diagname_pm2p5_bc => diagname_pm2p5_bc,                                 &
+  ukca_diagname_pm10_oc => diagname_pm10_oc,                                   &
+  ukca_diagname_pm2p5_oc => diagname_pm2p5_oc,                                 &
+  ukca_diagname_pm10_du => diagname_pm10_du,                                   &
+  ukca_diagname_pm2p5_du => diagname_pm2p5_du,                                 &
+  ukca_diagname_pm10_so4 => diagname_pm10_so4,                                 &
+  ukca_diagname_pm2p5_so4 => diagname_pm2p5_so4,                               &
+  ukca_diagname_pm10_ss => diagname_pm10_ss,                                   &
+  ukca_diagname_pm2p5_ss => diagname_pm2p5_ss,                                 &
+  ukca_diagname_pm10_no3 => diagname_pm10_no3,                                 &
+  ukca_diagname_pm2p5_no3 => diagname_pm2p5_no3,                               &
+  ukca_diagname_pm10_nh4 => diagname_pm10_nh4,                                 &
+  ukca_diagname_pm2p5_nh4 => diagname_pm2p5_nh4,                               &
+  ukca_diagname_pm10_nn => diagname_pm10_nn,                                   &
+  ukca_diagname_pm2p5_nn => diagname_pm2p5_nn,                                 &
+  ukca_diagname_pm10_mp => diagname_pm10_mp,                                   &
+  ukca_diagname_pm2p5_mp => diagname_pm2p5_mp
 USE ukca_emiss_api_mod, ONLY:                                                  &
   ukca_get_emission_varlist,                                                   &
   ukca_register_emission,                                                      &

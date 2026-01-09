@@ -114,6 +114,7 @@ USE ukca_pr_inputs_mod, ONLY: ukca_pr_inputs
 USE ukca_diagnostics_type_mod, ONLY: diagnostics_type
 USE ukca_diagnostics_output_mod, ONLY: update_skipped_diag_flags,              &
                                        blank_out_missing_diags
+USE ukca_pm_diags_mod, ONLY: pm_request_struct
 
 !!!! Note: LFRIC-specific pre-processor directives used in this module are
 !!!! inappropriate in UKCA and should be removed but must be retained while
@@ -223,8 +224,9 @@ USE ukca_chemistry_ctl_full_mod, ONLY: ukca_chemistry_ctl_full
 USE ukca_activate_mod,      ONLY: ukca_activate
 USE ukca_aero_ctl_mod,      ONLY: ukca_aero_ctl
 USE ukca_mode_diags_mod,    ONLY: ukca_mode_diags_alloc, ukca_mode_diags,      &
-                                  l_ukca_cmip6_diags,                          &
-                                  l_ukca_pm_diags
+                                  ukca_mode_diags_pm_req,                      &
+                                  l_ukca_cmip6_diags, l_ukca_pm_diags,         &
+                                  i_diag_req_struct
 USE ukca_age_air_mod,       ONLY: ukca_age_air
 USE ereport_mod,            ONLY: ereport
 USE ukca_calc_cloud_ph_mod, ONLY: ukca_calc_cloud_ph
@@ -581,6 +583,11 @@ REAL(KIND=jprb)               :: zhook_handle
 TYPE(autotune_type), ALLOCATABLE, SAVE :: autotune_state
 #endif
 
+! PM diagnostics related variables to determine l_ukca_pm_diags
+! from the request information
+TYPE(pm_request_struct), SAVE :: pm_request
+TYPE(i_diag_req_struct), SAVE :: i_diag_req
+
 CHARACTER(LEN=*), PARAMETER :: RoutineName='UKCA_MAIN1'
 
 !- End of header
@@ -756,7 +763,6 @@ IF (.NOT. ukca_config%l_enable_diag_um) THEN
   l_ukca_stratflux = .FALSE.
   l_ukca_mode_diags = .FALSE.
   l_ukca_cmip6_diags = .FALSE.
-  l_ukca_pm_diags = .FALSE.
   n_strat_fluxdiags = 0
   n_mode_diags = 0
   ! Allocate zero size STASH workspace for use in argument lists
@@ -2548,6 +2554,19 @@ END IF    ! End of IF (l_ukca_chem) statement
 ! 4.6 GLOMAP-mode aerosol scheme
 ! ----------------------------------------------------------------------
 IF (do_aerosol) THEN
+  ! Determine if PM diagnostics available for the requested mode
+  ! configuration
+  CALL ukca_mode_diags_pm_req(error_code_ptr,                                  &
+                              diagnostics,                                     &
+                              pm_request,                                      &
+                              i_diag_req,                                      &
+                              l_ukca_pm_diags,                                 &
+                              error_message, error_routine)
+
+  IF (error_code_ptr > 0) THEN
+    IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_out,zhook_handle)
+    RETURN
+  END IF
 
   ! Allocate space for copies of fields required for later diagnostic
   ! calculations
@@ -2854,22 +2873,35 @@ IF (ukca_config%l_enable_diag_um .AND. ukca_config%l_ukca_mode) THEN
     END IF
   END DO       ! 1,n_mplastic_diags
 
-  ! Copy CMIP6 diagnostics and/or PM diagnostics into STASHwork array
-  IF (do_aerosol .AND. (l_ukca_cmip6_diags .OR. l_ukca_pm_diags)) THEN
-    CALL ukca_mode_diags(row_length, rows, model_levels,                       &
-                         theta_field_size*model_levels,                        &
-                         n_mode_tracers,                                       &
-                         p_theta_levels,                                       &
-                         t_theta_levels,                                       &
-                         all_tracers(:,:,:,                                    &
-                                     n_chem_tracers+n_aero_tracers+1:          &
-                                     n_chem_tracers+n_aero_tracers+            &
-                                     n_mode_tracers),                          &
-                         interf_z,                                             &
-                         SIZE(stashwork38),                                    &
-                         stashwork38)
-  END IF
 END IF  ! ukca_config%l_enable_diag_um .AND. ukca_config%l_ukca_mode
+
+! Copy CMIP6 diagnostics and/or PM diagnostics into STASHwork array
+IF (do_aerosol .AND. (l_ukca_cmip6_diags .OR. l_ukca_pm_diags)) THEN
+  IF (.NOT. ALLOCATED(interf_z)) ALLOCATE(interf_z(row_length, rows, 0:model_levels))
+
+  CALL ukca_mode_diags(error_code_ptr,                                         &
+                       row_length, rows, model_levels,                         &
+                       theta_field_size*model_levels,                          &
+                       n_mode_tracers,                                         &
+                       p_theta_levels,                                         &
+                       t_theta_levels,                                         &
+                       all_tracers(:,:,:,                                      &
+                                   n_chem_tracers+n_aero_tracers+1:            &
+                                   n_chem_tracers+n_aero_tracers+              &
+                                   n_mode_tracers),                            &
+                       interf_z,                                               &
+                       SIZE(stashwork38), stashwork38,                         &
+                       diagnostics,                                            &
+                       pm_request,                                             &
+                       i_diag_req,                                             &
+                       error_message=error_message,                            &
+                       error_routine=error_routine)
+
+  IF (error_code_ptr > 0) THEN
+    IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_out,zhook_handle)
+    RETURN
+  END IF
+END IF
 
 IF (ukca_config%l_enable_diag_um .AND. ukca_config%l_ukca_chem) THEN
 

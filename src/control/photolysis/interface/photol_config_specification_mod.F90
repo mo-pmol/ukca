@@ -37,7 +37,7 @@
 
 MODULE photol_config_specification_mod
 
-USE missing_data_mod, ONLY: imdi, rmdi
+USE ukca_missing_data_mod, ONLY: imdi, rmdi
 
 USE photol_fieldname_mod,  ONLY: photol_jlabel_len
 

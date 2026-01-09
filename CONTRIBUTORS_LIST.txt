@@ -25,6 +25,7 @@ Anthony Jones                   Met Office
 Florent Malavelle               Met Office
 Andy Malcolm                    Met Office
 Cameron McErlich                University of Canterbury
+Pedro Molina Jimenez            Met Office
 Jane Mulcahy                    Met Office
 Charlotte Norris                Met Office
 Amy Peace                       Met Office

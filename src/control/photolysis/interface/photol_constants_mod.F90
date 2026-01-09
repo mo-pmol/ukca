@@ -28,7 +28,7 @@
 
 MODULE photol_constants_mod
 
-USE missing_data_mod, ONLY: rmdi
+USE ukca_missing_data_mod, ONLY: rmdi
 
 IMPLICIT NONE
 

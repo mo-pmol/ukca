@@ -150,7 +150,7 @@ USE photol_solflux_mod, ONLY: photol_solflux
 USE photol_config_specification_mod, ONLY: photol_config
 USE photol_constants_mod,  ONLY:  gg => const_g, rgas => const_r
 
-USE missing_data_mod,      ONLY: rmdi
+USE ukca_missing_data_mod,      ONLY: rmdi
 
 IMPLICIT NONE
 
