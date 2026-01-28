@@ -184,11 +184,13 @@ DO group = 1, n_diag_group
     i_diag_req(group) =                                                        &
       diag_index(diag_name, diagnostics%requests_ptr(group)%varnames)
 
-    ! If found, check status flag to
-    ! update status flag to show output is valid (or ignore if request is
-    ! inactive)
-    IF (i_diag_req(group) > 0) l_active_requests = .TRUE.
-
+    ! If found, check status flag to see if request is active
+    IF (i_diag_req(group) > 0) THEN
+      IF (diagnostics%requests_ptr(group)%status_flags(i_diag_req(group)) ==   &
+          diag_status_requested) THEN
+        l_active_requests = .TRUE.
+      END IF
+    END IF
   END IF
 
 END DO

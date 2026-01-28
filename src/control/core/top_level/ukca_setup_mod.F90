@@ -1771,7 +1771,8 @@ END IF
 
 ! Initialise master diagnostics list and determine availability of
 ! each diagnostic given the configuration.
-CALL init_diagnostics(error_code_ptr, ukca_config, advt,                       &
+CALL init_diagnostics(error_code_ptr, ukca_config,                             &
+                      glomap_config, advt,                                     &
                       error_message=error_message,                             &
                       error_routine=error_routine)
 IF (error_code_ptr > 0) THEN

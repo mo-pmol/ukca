@@ -31,6 +31,18 @@ USE ukca_mode_setup,        ONLY: nmodes, ncp_max,                             &
                                   cp_su, cp_bc, cp_oc, cp_cl, cp_du,           &
                                   cp_no3, cp_nh4, cp_nn, cp_mp
 USE ukca_config_specification_mod, ONLY: glomap_variables
+USE ukca_fieldname_mod, ONLY: diagname_pm10_dry, diagname_pm2p5_dry,           &
+                              diagname_pm10_wet, diagname_pm2p5_wet,           &
+                              diagname_pm10_bc, diagname_pm2p5_bc,             &
+                              diagname_pm10_oc, diagname_pm2p5_oc,             &
+                              diagname_pm10_so4, diagname_pm2p5_so4,           &
+                              diagname_pm10_du, diagname_pm2p5_du,             &
+                              diagname_pm10_ss, diagname_pm2p5_ss,             &
+                              diagname_pm10_nh4, diagname_pm2p5_nh4,           &
+                              diagname_pm10_no3, diagname_pm2p5_no3,           &
+                              diagname_pm10_nn, diagname_pm2p5_nn,             &
+                              diagname_pm10_mp, diagname_pm2p5_mp,             &
+                              maxlen_diagname
 USE errormessagelength_mod, ONLY: errormessagelength
 USE ereport_mod,            ONLY: ereport
 USE umPrintMgr,             ONLY: umPrint, umMessage
@@ -58,8 +70,44 @@ REAL, ALLOCATABLE, PUBLIC :: mdwat_diag(:,:)
 REAL, ALLOCATABLE, PUBLIC :: wetdp_diag(:,:)
 ! Geometric mean wet diameter of particles in each mode (m)
 
+INTEGER, PARAMETER, PUBLIC :: n_size_cat = 2  ! Number of PM size categories
+                                              ! (1=PM10, 2=PM2.5)
+INTEGER, PARAMETER, PUBLIC :: n_diag_cp = 9   ! Number of component diagnostics
+                                       ! available for each PM size category
+
+! Structure to hold requested PM diagnostics CF names
+TYPE, PUBLIC :: pm_diag_struct
+  CHARACTER(LEN=maxlen_diagname) :: diagname_total_dry(n_size_cat)
+                                             ! Diagnostic names of total PM dry mass
+  CHARACTER(LEN=maxlen_diagname) :: diagname_total_wet(n_size_cat)
+                                             ! Diagnostic names of total PM wet mass
+  CHARACTER(LEN=maxlen_diagname) :: diagname_component(n_diag_cp,n_size_cat)
+                                             ! Diagnostic names of contribution to PM
+  INTEGER :: i_ref_component(n_diag_cp) ! Reference component number
+END TYPE pm_diag_struct
+
+TYPE(pm_diag_struct), PARAMETER, PUBLIC :: pm_diag = pm_diag_struct(           &
+  [diagname_pm10_dry, diagname_pm2p5_dry],                                     &
+  [diagname_pm10_wet, diagname_pm2p5_wet],                                     &
+  RESHAPE([diagname_pm10_so4,   diagname_pm10_bc, diagname_pm10_oc,            &
+            diagname_pm10_ss,   diagname_pm10_du, diagname_pm10_no3,           &
+            diagname_pm10_nn,   diagname_pm10_nh4, diagname_pm10_mp,           &
+            diagname_pm2p5_so4, diagname_pm2p5_bc, diagname_pm2p5_oc,          &
+            diagname_pm2p5_ss,  diagname_pm2p5_du, diagname_pm2p5_no3,         &
+            diagname_pm2p5_nn,  diagname_pm2p5_nh4, diagname_pm2p5_mp],        &
+            [n_diag_cp,2]),                                                    &
+          [cp_su, cp_bc, cp_oc, cp_cl, cp_du, cp_no3, cp_nn, cp_nh4, cp_mp])
+
+! Structure to hold the indices of PM diagnostics requested
+TYPE, PUBLIC :: i_diag_req_struct
+  INTEGER, ALLOCATABLE :: dry(:,:)
+  INTEGER, ALLOCATABLE :: wet(:,:)
+  INTEGER, ALLOCATABLE :: component(:,:,:)
+END TYPE i_diag_req_struct
+
 PUBLIC :: ukca_mode_diags_alloc
 PUBLIC :: ukca_mode_diags
+PUBLIC :: ukca_mode_diags_pm_req
 
 CONTAINS
 
@@ -100,11 +148,14 @@ END SUBROUTINE ukca_mode_diags_alloc
 
 
 ! ----------------------------------------------------------------------
-SUBROUTINE ukca_mode_diags(row_length, rows, model_levels,                     &
+SUBROUTINE ukca_mode_diags(error_code_ptr,                                     &
+                           row_length, rows, model_levels,                     &
                            nbox, n_mode_tracers,                               &
                            p_theta_levels,                                     &
                            t_theta_levels, mode_tracers,                       &
-                           interf_z, len_stashwork38, stashwork38)
+                           interf_z, len_stashwork38, stashwork38,             &
+                           diagnostics, pm_request, i_diag_req,                &
+                           error_message, error_routine)
 ! Description:
 !   Obtain number densities and component material concentrations for
 !   each mode to use in calculating diagnostics, derive the required
@@ -114,8 +165,13 @@ SUBROUTINE ukca_mode_diags(row_length, rows, model_levels,                     &
 USE ukca_mode_tracer_maps_mod, ONLY: nmr_index, mmr_index
 USE asad_mod,                  ONLY: jpctr
 USE ukca_types_mod,            ONLY: log_small
+USE ukca_diagnostics_type_mod, ONLY: diagnostics_type
+USE ukca_pm_diags_mod,         ONLY: pm_request_struct
+USE ukca_error_mod, ONLY: maxlen_message, maxlen_procname
 
 IMPLICIT NONE
+
+INTEGER, POINTER, INTENT(IN) :: error_code_ptr
 
 ! UKCA domain dimensions
 INTEGER, INTENT(IN) :: row_length
@@ -146,6 +202,16 @@ INTEGER, INTENT(IN) :: len_stashwork38
 
 ! Work array for STASH
 REAL, INTENT(IN OUT) :: stashwork38(len_stashwork38)
+
+! Type to hold data for servicing diagnostic requests
+TYPE(diagnostics_type), INTENT(IN OUT) :: diagnostics
+
+! Diagnostics request structure
+TYPE(pm_request_struct), INTENT(IN OUT) :: pm_request
+TYPE(i_diag_req_struct), INTENT(IN OUT) :: i_diag_req
+
+CHARACTER(LEN=maxlen_message), OPTIONAL, INTENT(OUT) :: error_message
+CHARACTER(LEN=maxlen_procname), OPTIONAL, INTENT(OUT) :: error_routine
 
 ! Local variables
 
@@ -183,6 +249,10 @@ CHARACTER(LEN=*), PARAMETER :: RoutineName='UKCA_MODE_DIAGS'
 
 
 IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_in,zhook_handle)
+
+error_code_ptr = 0
+IF (PRESENT(error_message)) error_message = ''
+IF (PRESENT(error_routine)) error_routine = ''
 
 ! Caution - pointers to TYPE glomap_variables%
 !           have been included here to make the code easier to read
@@ -279,8 +349,17 @@ IF (l_ukca_cmip6_diags) THEN
 END IF
 
 IF (l_ukca_pm_diags) THEN
-  CALL mode_diags_pm(row_length, rows, model_levels, nbox, nd, md,             &
-                     len_stashwork38, stashwork38)
+  CALL mode_diags_pm(error_code_ptr,                                           &
+                     row_length, rows, model_levels,                           &
+                     nbox, nd, md, diagnostics,                                &
+                     pm_request, i_diag_req,                                   &
+                     error_message=error_message,                              &
+                     error_routine=error_routine)
+
+  IF (error_code_ptr > 0) THEN
+    IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_out,zhook_handle)
+    RETURN
+  END IF
 END IF
 
 ! --------------------------------------------------------------------
@@ -867,35 +946,160 @@ IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_out,zhook_handle)
 RETURN
 END SUBROUTINE mode_diags_cmip6
 
+! ----------------------------------------------------------------------
+SUBROUTINE ukca_mode_diags_pm_req(error_code_ptr,                              &
+                                  diagnostics,                                 &
+                                  pm_request,                                  &
+                                  i_diag_req,                                  &
+                                  l_ukca_pm_diags_req,                         &
+                                  error_message, error_routine)
+
+! Description:
+!   Determine if PM diagnostics will be populated within UKCA from
+!   the request configuration. This routine will determine the
+!   value of l_ukca_pm_diags at runtime.
+
+USE ukca_pm_diags_mod, ONLY: pm_request_struct
+USE ukca_diagnostics_type_mod, ONLY: diagnostics_type, n_diag_group
+USE ukca_diagnostics_output_mod, ONLY: seek_active_requests
+USE ukca_fieldname_mod, ONLY: maxlen_diagname
+USE ukca_error_mod, ONLY: maxlen_message, maxlen_procname
+USE ukca_mode_setup, ONLY : ncp_max
+
+IMPLICIT NONE
+
+! Error code pointer
+INTEGER, POINTER, INTENT(IN) :: error_code_ptr
+
+! Diagnostic request info and pointers to parent arrays for diagnostic output
+TYPE(diagnostics_type), INTENT(IN OUT) :: diagnostics
+TYPE(pm_request_struct), INTENT(IN OUT) :: pm_request
+TYPE(i_diag_req_struct), INTENT(IN OUT) :: i_diag_req
+
+! Logical flag to indicate if UKCA PM diagnostics are requested
+LOGICAL, INTENT(IN OUT) :: l_ukca_pm_diags_req
+
+CHARACTER(LEN=maxlen_message), OPTIONAL, INTENT(OUT) :: error_message
+CHARACTER(LEN=maxlen_procname), OPTIONAL, INTENT(OUT) :: error_routine
+
+! Local variables
+INTEGER :: i_size_cat           ! Loop counter for PM size category
+INTEGER :: icp                  ! Loop counter for components
+INTEGER :: i_diag_cp            ! Loop counter for PM component diagnostics
+                                ! request
+LOGICAL :: l_check_group(n_diag_group) ! True to check group for active
+                                       ! request
+LOGICAL :: l_active_requests    ! True if any active requests found
+CHARACTER(LEN=maxlen_diagname) :: diagname  ! Internal variable for diagnostic
+                                            ! name
+
+INTEGER(KIND=jpim), PARAMETER :: zhook_in  = 0
+INTEGER(KIND=jpim), PARAMETER :: zhook_out = 1
+REAL(KIND=jprb)               :: zhook_handle
+
+CHARACTER(LEN=*), PARAMETER :: RoutineName='MODE_DIAGS_PM_REQ'
+
+IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_in,zhook_handle)
+
+error_code_ptr = 0
+IF (PRESENT(error_message)) error_message = ''
+IF (PRESENT(error_routine)) error_routine = RoutineName
+
+! Initialize PM request flags
+IF (.NOT. ALLOCATED(pm_request%l_total_dry)) ALLOCATE(pm_request%l_total_dry(n_size_cat))
+IF (.NOT. ALLOCATED(pm_request%l_total_wet)) ALLOCATE(pm_request%l_total_wet(n_size_cat))
+IF (.NOT. ALLOCATED(pm_request%l_component)) ALLOCATE(pm_request%l_component(ncp_max, n_size_cat))
+
+pm_request%l_total_dry(:) = .FALSE.
+pm_request%l_total_wet(:) = .FALSE.
+pm_request%l_component(:,:) = .FALSE.
+
+! Initialise i_diag with the indices of the requested
+! PM diagnostics
+IF (.NOT. ALLOCATED(i_diag_req%dry)) ALLOCATE(i_diag_req%dry(n_diag_group, n_size_cat))
+IF (.NOT. ALLOCATED(i_diag_req%wet)) ALLOCATE(i_diag_req%wet(n_diag_group, n_size_cat))
+IF (.NOT. ALLOCATED(i_diag_req%component)) ALLOCATE(i_diag_req%component(n_diag_group, ncp_max, n_size_cat))
+
+! Determine which PM diagnostics must be calculated based on requests,
+! set PM request flags accordingly and allocate storage (don't allocate above
+! maximum index to be used)
+
+! Set l_check_group to True for both surface and full height diagnostics
+l_check_group = .TRUE.
+! ------------------------------------------------------------------------------
+!Total PM dry mass
+! ------------------------------------------------------------------------------
+DO i_size_cat = 1, n_size_cat
+  diagname = pm_diag%diagname_total_dry(i_size_cat)
+  CALL seek_active_requests(diagname, diagnostics, l_check_group,              &
+                            i_diag_req%dry(:, i_size_cat),                     &
+                            l_active_requests)
+  IF (l_active_requests) THEN
+    pm_request%l_total_dry(i_size_cat) = .TRUE.
+  END IF
+END DO
+! ------------------------------------------------------------------------------
+! Total PM wet mass
+! ------------------------------------------------------------------------------
+DO i_size_cat = 1, n_size_cat
+  diagname = pm_diag%diagname_total_wet(i_size_cat)
+  CALL seek_active_requests(diagname, diagnostics, l_check_group,              &
+                            i_diag_req%wet(:, i_size_cat),                     &
+                            l_active_requests)
+  IF (l_active_requests) THEN
+    pm_request%l_total_wet(i_size_cat) = .TRUE.
+  END IF
+END DO
+! ------------------------------------------------------------------------------
+! PM Component contribution requests.
+! ------------------------------------------------------------------------------
+DO i_size_cat = 1, n_size_cat
+  DO i_diag_cp = 1, n_diag_cp
+    diagname = pm_diag%diagname_component(i_diag_cp, i_size_cat)
+    CALL seek_active_requests(diagname, diagnostics, l_check_group,            &
+                              i_diag_req%component(:, i_diag_cp, i_size_cat),  &
+                              l_active_requests)
+    IF (l_active_requests) THEN
+      icp = pm_diag%i_ref_component(i_diag_cp)
+      pm_request%l_component(icp, i_size_cat) = .TRUE.
+    END IF
+  END DO
+END DO
+
+! Set the l_ukca_pm_diags_req flag to True if any PM diagnostics are
+! requested.
+IF (ANY(pm_request%l_total_dry) .OR. ANY(pm_request%l_total_wet) .OR.          &
+    ANY(pm_request%l_component)) THEN
+  l_ukca_pm_diags_req = .TRUE.
+ELSE
+  l_ukca_pm_diags_req = .FALSE.
+END IF
+
+IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_out,zhook_handle)
+RETURN
+END SUBROUTINE ukca_mode_diags_pm_req
 
 ! ----------------------------------------------------------------------
-SUBROUTINE mode_diags_pm(row_length, rows, model_levels, nbox, nd, md,         &
-                         len_stashwork38, stashwork38)
+SUBROUTINE mode_diags_pm(error_code_ptr,                                       &
+                         row_length, rows, model_levels, nbox, nd, md,         &
+                         diagnostics,                                          &
+                         pm_request, i_diag_req,                               &
+                         error_message, error_routine)
+
 ! Description:
 !   Calculate the required PM10 and PM2.5 diagnostics and copy them to
-!   the STASHwork array.
+!   the diagnostic array.
 ! ----------------------------------------------------------------------
 
 USE ukca_pm_diags_mod,    ONLY: ukca_pm_diags, pm_request_struct
-USE ukca_um_legacy_mod,   ONLY: stashcode_glomap_sec,                          &
-                                stashcode_pm10_dry, stashcode_pm2p5_dry,       &
-                                stashcode_pm10_wet, stashcode_pm2p5_wet,       &
-                                stashcode_pm10_so4, stashcode_pm10_bc,         &
-                                stashcode_pm10_oc, stashcode_pm10_ss,          &
-                                stashcode_pm10_du,                             &
-                                stashcode_pm2p5_so4, stashcode_pm2p5_bc,       &
-                                stashcode_pm2p5_oc, stashcode_pm2p5_ss,        &
-                                stashcode_pm2p5_du,                            &
-                                stashcode_pm10_nh4, stashcode_pm2p5_nh4,       &
-                                stashcode_pm10_no3, stashcode_pm2p5_no3,       &
-                                stashcode_pm10_nn , stashcode_pm2p5_nn,        &
-                                stashcode_pm10_mp , stashcode_pm2p5_mp,        &
-                                len_stlist, stindex,                           &
-                                stlist, num_stash_levels,                      &
-                                stash_levels, si, sf, si_last,                 &
-                                copydiag_3d
+USE ukca_fieldname_mod, ONLY: maxlen_diagname
+USE ukca_diagnostics_type_mod, ONLY: diagnostics_type, n_diag_group
+USE ukca_diagnostics_output_mod, ONLY: update_diagnostics_3d_real
+USE ukca_error_mod, ONLY: maxlen_message, maxlen_procname
 
 IMPLICIT NONE
+
+INTEGER, POINTER, INTENT(IN) :: error_code_ptr
 
 ! UKCA domain dimensions
 INTEGER, INTENT(IN) :: row_length
@@ -912,58 +1116,28 @@ REAL, INTENT(IN)    :: nd(nbox,nmodes)
 ! (molecules.particle^-1)
 REAL, INTENT(IN)    :: md(nbox,nmodes,glomap_variables%ncp)
 
-! Length of diagnostics array
-INTEGER, INTENT(IN) :: len_stashwork38
+! Diagnostic request info and pointers to parent arrays for diagnostic output
+TYPE(diagnostics_type), INTENT(IN OUT) :: diagnostics
+TYPE(pm_request_struct), INTENT(IN OUT) :: pm_request
+TYPE(i_diag_req_struct), INTENT(IN OUT) :: i_diag_req
 
-! Work array for STASH
-REAL, INTENT(IN OUT) :: stashwork38(len_stashwork38)
+CHARACTER(LEN=maxlen_message), OPTIONAL, INTENT(OUT) :: error_message
+CHARACTER(LEN=maxlen_procname), OPTIONAL, INTENT(OUT) :: error_routine
 
 ! Local variables
-
-INTEGER, PARAMETER :: n_size_cat = 2 ! Number of PM size categories
-INTEGER, PARAMETER :: ndiagcp = 9    ! Number of component diagnostics
-                                     ! available for each PM size category
-INTEGER :: im_index       ! Internal model index
-INTEGER :: section        ! Stash section
-INTEGER :: tsection       ! Stash section * 1000
-INTEGER :: item           ! Stash item
 INTEGER :: i_size_cat     ! Loop counter for PM size category
 INTEGER :: i_size_cat_max ! Highest PM size category index to be used
 INTEGER :: icp            ! Loop counter for components
 INTEGER :: icp_max        ! Highest component index to be used for component
                           ! contributions
-INTEGER :: i              ! Loop counter
+INTEGER :: i_diag_cp      ! Loop counter
 INTEGER :: icode          ! Error code
 REAL, PARAMETER :: d_cutoff(n_size_cat) = [10.0e-6, 2.5e-6]
                           ! Size limits for particulate matter (m)
 REAL    :: field3d(row_length,rows,model_levels)   ! Output field (3D)
 
-! Specification for PM STASH items
-
-TYPE :: pm_item_struct
-  INTEGER :: stcode_total_dry(n_size_cat) ! STASH code of total PM dry mass
-                                          !   (1=PM10, 2=PM2.5)
-  INTEGER :: stcode_total_wet(n_size_cat) ! STASH code of total PM wet mass
-  INTEGER :: stcode_component(ndiagcp,n_size_cat)
-                                          ! STASH code of contribution to PM
-  INTEGER :: i_ref_component(ndiagcp)     ! Reference component number
-END TYPE pm_item_struct
-
-TYPE(pm_item_struct), PARAMETER :: pm_item = pm_item_struct(                   &
-  [stashcode_pm10_dry, stashcode_pm2p5_dry],                                   &
-  [stashcode_pm10_wet, stashcode_pm2p5_wet],                                   &
-  RESHAPE([stashcode_pm10_so4, stashcode_pm10_bc, stashcode_pm10_oc,           &
-            stashcode_pm10_ss, stashcode_pm10_du, stashcode_pm10_no3,          &
-            stashcode_pm10_nn, stashcode_pm10_nh4, stashcode_pm10_mp,          &
-            stashcode_pm2p5_so4, stashcode_pm2p5_bc, stashcode_pm2p5_oc,       &
-            stashcode_pm2p5_ss, stashcode_pm2p5_du, stashcode_pm2p5_no3,       &
-            stashcode_pm2p5_nn, stashcode_pm2p5_nh4, stashcode_pm2p5_mp],      &
-            [ndiagcp,2]),                                                      &
-  [cp_su, cp_bc, cp_oc, cp_cl, cp_du, cp_no3, cp_nn, cp_nh4, cp_mp])
-
-! Request flags indicating the PM diagnostics to be calculated
-! in 'ukca_pm_diags'
-TYPE(pm_request_struct) :: pm_request
+LOGICAL :: l_active_requests              ! True if any active requests found
+CHARACTER(LEN=maxlen_diagname) :: diagname ! Internal variable for diagnostic name
 
 ! PM diagnostics from 'ukca_pm_diags' (ug m-3)
 REAL, ALLOCATABLE :: pm_dry(:,:)         ! Total PM dry mass by size category
@@ -980,28 +1154,18 @@ CHARACTER(LEN=*), PARAMETER :: RoutineName='MODE_DIAGS_PM'
 
 IF (lhook) CALL dr_hook(ModuleName//':'//RoutineName,zhook_in,zhook_handle)
 
-section = stashcode_glomap_sec
-tsection = stashcode_glomap_sec*1000
+error_code_ptr = 0
+IF (PRESENT(error_message)) error_message = ''
+IF (PRESENT(error_routine)) error_routine = RoutineName
 
-! Initialize PM request flags
+! Determine which PM diagnostics must be calculated based on requests,
+! using PM request flags obtained previously by ukca_mode_diags_pm_req
+! and allocate storage (don't allocate above maximum index to be used)
 
-ALLOCATE(pm_request%l_total_dry(n_size_cat))
-ALLOCATE(pm_request%l_total_wet(n_size_cat))
-ALLOCATE(pm_request%l_component(glomap_variables%ncp,n_size_cat))
-pm_request%l_total_dry(:) = .FALSE.
-pm_request%l_total_wet(:) = .FALSE.
-pm_request%l_component(:,:) = .FALSE.
-
-! Determine which PM diagnostics must be calculated based on STASH requests,
-! set PM request flags accordingly and allocate storage (don't allocate above
-! maximum index to be used)
-
-! Total PM dry mass
+!Total PM dry mass
 i_size_cat_max = 0
-DO i_size_cat = 1,n_size_cat
-  item = pm_item%stcode_total_dry(i_size_cat) - tsection
-  IF (sf(item,section)) THEN
-    pm_request%l_total_dry(i_size_cat) = .TRUE.
+DO i_size_cat = 1, n_size_cat
+  IF (pm_request%l_total_dry(i_size_cat) .EQV. .TRUE.) THEN
     i_size_cat_max = i_size_cat
   END IF
 END DO
@@ -1013,15 +1177,14 @@ END IF
 
 ! Total PM wet mass
 i_size_cat_max = 0
-DO i_size_cat = 1,n_size_cat
-  item = pm_item%stcode_total_wet(i_size_cat) - tsection
-  IF (sf(item,section)) THEN
-    pm_request%l_total_wet(i_size_cat) = .TRUE.
+DO i_size_cat = 1, n_size_cat
+  IF (pm_request%l_total_dry(i_size_cat) .EQV. .TRUE.) THEN
     i_size_cat_max = i_size_cat
   END IF
 END DO
+
 IF (i_size_cat_max > 0) THEN
-  ALLOCATE(pm_wet(nbox,i_size_cat_max))
+  ALLOCATE(pm_wet(nbox, i_size_cat_max))
 ELSE
   ALLOCATE(pm_wet(1,1))
 END IF
@@ -1029,12 +1192,10 @@ END IF
 ! Component contribution requests.
 i_size_cat_max = 0
 icp_max = 0
-DO i_size_cat = 1,n_size_cat
-  DO i = 1,ndiagcp
-    item = pm_item%stcode_component(i,i_size_cat) - tsection
-    IF (sf(item,section)) THEN
-      icp = pm_item%i_ref_component(i)
-      pm_request%l_component(icp,i_size_cat) = .TRUE.
+DO i_size_cat = 1, n_size_cat
+  DO i_diag_cp = 1, n_diag_cp
+    icp = pm_diag%i_ref_component(i_diag_cp)
+    IF (pm_request%l_component(icp, i_size_cat) .EQV. .TRUE.) THEN
       i_size_cat_max = i_size_cat
       IF (icp > icp_max) icp_max = icp
     END IF
@@ -1046,60 +1207,77 @@ ELSE
   ALLOCATE(pm_component(1,1,1))
 END IF
 
-! Derive the PM diagnostics needed for producing the required STASH items
+! Derive the PM diagnostics needed for producing the required
+! PM diagnostics names
 
 CALL ukca_pm_diags(nbox,nd,md,mdwat_diag,wetdp_diag,d_cutoff,pm_request,       &
                    pm_dry,pm_wet,pm_component)
 
-! Copy required items to STASH work array
-
-im_index = 1
-icode = 0
+! Copy required items to diagnostic array
 
 DO i_size_cat = 1,n_size_cat
 
   ! Total dry mass for PM size category
-  item = pm_item%stcode_total_dry(i_size_cat) - tsection
-  IF (sf(item,section)) THEN
+  diagname = pm_diag%diagname_total_dry(i_size_cat)
+  IF (pm_request%l_total_dry(i_size_cat)) THEN
     field3d = RESHAPE(pm_dry(:,i_size_cat),                                    &
                       [row_length,rows,model_levels])
 
-    CALL copydiag_3d(stashwork38(si(item,section,im_index):                    &
-      si_last(item,section,im_index)),                                         &
-      field3d,                                                                 &
-      row_length,rows,model_levels,                                            &
-      stlist(:,stindex(1,item,section,im_index)),len_stlist,                   &
-      stash_levels,num_stash_levels+1)
+    CALL update_diagnostics_3d_real(                                           &
+           error_code_ptr, diagname,                                           &
+           field3d, diagnostics,                                               &
+           i_diag_req=i_diag_req%dry(:, i_size_cat),                           &
+           error_message=error_message,                                        &
+           error_routine=error_routine)
+
+    IF ( error_code_ptr > 0 ) THEN
+      IF (lhook) CALL dr_hook(ModuleName//';'//RoutineName,zhook_out,zhook_handle)
+      RETURN
+    END IF
+
   END IF
 
   ! Total wet mass for PM size category
-  item = pm_item%stcode_total_wet(i_size_cat) - tsection
-  IF (sf(item,section)) THEN
+  diagname = pm_diag%diagname_total_wet(i_size_cat)
+  IF (pm_request%l_total_wet(i_size_cat)) THEN
     field3d = RESHAPE(pm_wet(:,i_size_cat),                                    &
                       [row_length,rows,model_levels])
 
-    CALL copydiag_3d(stashwork38(si(item,section,im_index):                    &
-      si_last(item,section,im_index)),                                         &
-      field3d,                                                                 &
-      row_length,rows,model_levels,                                            &
-      stlist(:,stindex(1,item,section,im_index)),len_stlist,                   &
-      stash_levels,num_stash_levels+1)
+    CALL update_diagnostics_3d_real(                                           &
+      error_code_ptr, diagname,                                                &
+      field3d, diagnostics,                                                    &
+      i_diag_req=i_diag_req%wet(:, i_size_cat),                                &
+      error_message=error_message,                                             &
+      error_routine=error_routine)
+
+    IF ( error_code_ptr > 0 ) THEN
+      IF (lhook) CALL dr_hook(ModuleName//';'//RoutineName,zhook_out,zhook_handle)
+      RETURN
+    END IF
+
   END IF
 
   ! Component contributions to PM size category
-  DO i = 1,ndiagcp
-    item = pm_item%stcode_component(i,i_size_cat) - tsection
-    IF (sf(item,section)) THEN
-      icp = pm_item%i_ref_component(i)
+  DO i_diag_cp = 1,n_diag_cp
+    diagname = pm_diag%diagname_component(i_diag_cp,i_size_cat)
+    icp = pm_diag%i_ref_component(i_diag_cp)
+
+    IF (pm_request%l_component(icp, i_size_cat)) THEN
       field3d = RESHAPE(pm_component(:,icp,i_size_cat),                        &
                         [row_length,rows,model_levels])
 
-      CALL copydiag_3d(stashwork38(si(item,section,im_index):                  &
-        si_last(item,section,im_index)),                                       &
-        field3d,                                                               &
-        row_length,rows,model_levels,                                          &
-        stlist(:,stindex(1,item,section,im_index)),len_stlist,                 &
-        stash_levels,num_stash_levels+1)
+      CALL update_diagnostics_3d_real(                                         &
+        error_code_ptr, diagname,                                              &
+        field3d, diagnostics,                                                  &
+        i_diag_req=i_diag_req%component(:, i_diag_cp, i_size_cat),             &
+        error_message=error_message,                                           &
+        error_routine=error_routine)
+
+      IF ( error_code_ptr > 0 ) THEN
+        IF (lhook) CALL dr_hook(ModuleName//';'//RoutineName,zhook_out,zhook_handle)
+        RETURN
+      END IF
+
     END IF
   END DO
 
@@ -1108,6 +1286,9 @@ END DO
 DEALLOCATE(pm_request%l_total_dry)
 DEALLOCATE(pm_request%l_total_wet)
 DEALLOCATE(pm_request%l_component)
+DEALLOCATE(i_diag_req%component)
+DEALLOCATE(i_diag_req%wet)
+DEALLOCATE(i_diag_req%dry)
 DEALLOCATE(pm_dry)
 DEALLOCATE(pm_wet)
 DEALLOCATE(pm_component)

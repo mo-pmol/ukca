@@ -608,6 +608,95 @@ CHARACTER(LEN=*), PARAMETER :: diagname_o3_column_du =                         &
 CHARACTER(LEN=*), PARAMETER :: diagname_plumeria_height =                      &
   'plumeria_height_of_explosive_eruptions'
 
+! Mass concentration of PM10 particles in air due to dry deposition
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_dry =               &
+    'mass_concentration_of_pm10_dry_aerosol_particles_in_air'   ! [CF]
+
+! Mass concentration of PM2.5 particles in air due to dry deposition
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_dry =              &
+    'mass_concentration_of_pm2.5_dry_aerosol_particles_in_air'  ! [CF]
+
+! Mass concentration of PM10 particles in air due to wet deposition
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_wet =               &
+    'mass_concentration_of_pm10_wet_aerosol_particles_in_air'   ! [CF]
+
+! Mass concentration of PM2.5 particles in air due to wet deposition
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_wet =              &
+    'mass_concentration_of_pm2.5_wet_aerosol_particles_in_air'  ! [CF]
+
+! Mass concentration of PM10 sulfate dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_so4 =               &
+    'mass_concentration_of_pm10_sulfate_dry_aerosol_particles_in_air'                  ! [CF]
+
+! Mass concentration of PM2.5 sulfate dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_so4 =              &
+    'mass_concentration_of_pm2.5_sulfate_dry_aerosol_particles_in_air'                 ! [CF]
+
+! Mass concentration of PM10 black carbon dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_bc =                &
+    'mass_concentration_of_pm10_black_carbon_dry_aerosol_particles_in_air'             ! [CF]
+
+! Mass concentration of PM2.5 black carbon dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_bc =               &
+    'mass_concentration_of_pm2.5_black_carbon_dry_aerosol_particles_in_air'            ! [CF]
+
+! Mass concentration of PM10 particulate organic matter dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_oc =                &
+    'mass_fraction_of_pm10_particulate_organic_matter_dry_aerosol_particles_in_air'    ! [CF]
+
+! Mass concentration of PM2.5 particulate organic matter dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_oc =               &
+    'mass_fraction_of_pm2p5_particulate_organic_matter_dry_aerosol_particles_in_air'   ! [CF]
+
+! Mass concentration of PM10 sea salt dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_ss =                &
+    'mass_concentration_of_pm10_sea_salt_dry_aerosol_particles_in_air'                 ! [CF]
+
+! Mass concentration of PM2.5 sea salt dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_ss =               &
+    'mass_concentration_of_pm2.5_sea_salt_dry_aerosol_particles_in_air'                ! [CF]
+
+! Mass concentration of PM10 dust dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_du =                &
+    'mass_concentration_of_pm10_dust_dry_aerosol_particles_in_air'                     ! [CF]
+
+! Mass concentration of PM2.5 dust dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_du =               &
+    'mass_concentration_of_pm2.5_dust_dry_aerosol_particles_in_air'                    ! [CF]
+
+! Mass concentration of PM10 ammonium dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_nh4 =               &
+    'mass_concentration_of_pm10_ammonium_dry_aerosol_particles_in_air'                 ! [CF]
+
+! Mass concentration of PM2.5 ammonium dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_nh4 =              &
+    'mass_concentration_of_pm2.5_ammonium_dry_aerosol_particles_in_air'                ! [CF]
+
+! Mass concentration of PM10 nitrate dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_no3 =               &
+    'mass_concentration_of_pm10_nitrate_dry_aerosol_particles_in_air'                  ! [CF]
+
+! Mass concentration of PM2.5 nitrate dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_no3 =              &
+    'mass_concentration_of_pm2.5_nitrate_dry_aerosol_particles_in_air'                 ! [CF]
+
+! Mass concentration of PM2.5 Sodium nitrate dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_nn =                &
+    'mass_concentration_of_pm10_sodium_nitrate_dry_aerosol_particles_in_air'           ! [CF]
+
+! Mass concentration of PM2.5 sodium nitrate dry aerosol particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_nn =               &
+    'mass_concentration_of_pm2.5_sodium_nitrate_dry_aerosol_particles_in_air'          ! [CF]
+
+! Mass concentration of PM2.5 microplastic particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm10_mp =                &
+    'mass_concentration_of_pm10_microplastic_particles_in_air'                         ! [CF]
+
+! Mass concentration of PM2.5 microplastic particles in air
+CHARACTER(LEN=maxlen_diagname), PARAMETER :: diagname_pm2p5_mp =               &
+    'mass_concentration_of_pm2.5_microplastic_particles_in_air'                        ! [CF]
+
+
 CONTAINS
 
 ! ----------------------------------------------------------------------
